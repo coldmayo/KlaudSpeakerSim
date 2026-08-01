@@ -8,6 +8,7 @@
 #include "include/enclosure.h"
 #include "include/plots.h"
 #include "include/driver.h"
+#include "include/crossover.h"
 
 using json = nlohmann::json;
 
@@ -52,7 +53,9 @@ int main(int argc, char * argv[]) {
     }
 
     double fs = json_f["fs_hz"];
+    double fc = json_f["crossover"]["crossover_freq_hz"];
     double omega_0 = 2.0 * PI * fs;
+    double omega_c = 2.0 * PI * fc;
     std::vector<std::complex<double>> H_box(s.size(), 1.0);
 
     // Sealed Box (Butterworth B2)
@@ -69,10 +72,13 @@ int main(int argc, char * argv[]) {
         H_box = vented_transfer(s, a, omega_0);
     }
 
+    auto H_HP = select_crossover(json_f["crossover"]["type"], json_f["crossover"]["order"], s, omega_c, 0);
+    auto H_LP = select_crossover(json_f["crossover"]["type"], json_f["crossover"]["order"], s, omega_c, 1);
+
     std::vector<std::complex<double>> H_system_total(freqs.size());
     for (size_t i = 0; i < freqs.size(); ++i) {
-        std::complex<double> woofer_branch  = H_driver_woofer[i] * H_box[i];
-        std::complex<double> tweeter_branch = H_driver_tweeter[i];
+        std::complex<double> woofer_branch  = H_driver_woofer[i] * H_box[i] * H_LP[i];
+        std::complex<double> tweeter_branch = H_driver_tweeter[i] * H_HP[i];
 
         H_system_total[i] = woofer_branch + tweeter_branch;
     }
