@@ -3,6 +3,7 @@
 #include <vector>
 #include <complex>
 #include <cmath>
+#include <format>
 #include "json.hpp"
 
 #include "include/enclosure.h"
@@ -10,6 +11,7 @@
 #include "include/driver.h"
 #include "include/crossover.h"
 #include "include/directivity.h"
+#include "include/crossover_passive.h"
 
 using json = nlohmann::json;
 
@@ -35,12 +37,17 @@ int main(int argc, char * argv[]) {
     std::vector<double> woofer_a, tweeter_a;
     std::vector<double> woofer_offset_m, tweeter_offset_m;
 
+    std::vector<std::complex<double>> Z_woofer_zma(s.size(), std::complex<double>(8.0, 0.0));
+    std::vector<std::complex<double>> Z_tweeter_zma(s.size(), std::complex<double>(8.0, 0.0));
+
     std::string type;
     std::string frd_file;
+    std::string zma_file;
     double d;
     for (const auto& d_json : json_f["drivers"]) {
         type = d_json["type"];
         frd_file = d_json["frd_path"];
+        zma_file = d_json["zma_path"];
         d = d_json["physical_delay_m"];
         double Sd = d_json.value("eff_surface_area", -1.0);
         double w  = d_json.value("w_ribbon_strip", -1.0);
@@ -66,6 +73,15 @@ int main(int argc, char * argv[]) {
             tweeter_a.push_back(radius_m);
             tweeter_offset_m.push_back(y_offset);
         }
+
+        if (!zma_file.empty()) {
+            auto Z_interp = zma_measured(zma_file, freqs);
+            if (type == "woofer") {
+                Z_woofer_zma = Z_interp;
+            } else if (type == "tweeter") {
+                Z_tweeter_zma = Z_interp;
+            }
+        }
     }
 
     double fs = json_f["fs_hz"];
@@ -87,10 +103,20 @@ int main(int argc, char * argv[]) {
         a_coe a = gen_a_coes(Qts, QL, h, alpha);
         H_box = vented_transfer(s, a, omega_0);
     }
-
-    auto H_HP = select_crossover(json_f["crossover"]["type"], json_f["crossover"]["order"], s, omega_c, 0);
-    auto H_LP = select_crossover(json_f["crossover"]["type"], json_f["crossover"]["order"], s, omega_c, 1);
-
+    std::vector<std::complex<double>> H_HP;
+    std::vector<std::complex<double>> H_LP;
+	if (json_f["crossover"]["mode"] == "active") {
+    	H_HP = select_crossover(json_f["crossover"]["type"], json_f["crossover"]["order"], s, omega_c, 0);
+    	H_LP = select_crossover(json_f["crossover"]["type"], json_f["crossover"]["order"], s, omega_c, 1);
+	} else if (json_f["crossover"]["mode"] == "passive") {
+		if (json_f["crossover"].contains("tweeter_branch")) {
+            H_HP = pass_cross_abcd(s, Z_tweeter_zma, json_f["crossover"]["tweeter_branch"]);
+        }
+        if (json_f["crossover"].contains("woofer_branch")) {
+            H_LP = pass_cross_abcd(s, Z_woofer_zma, json_f["crossover"]["woofer_branch"]);
+        }
+	}
+	
     std::vector<std::complex<double>> H_system_total(freqs.size());
     std::vector<std::complex<double>> H_woofer(freqs.size());
     std::vector<std::complex<double>> H_tweeter(freqs.size());
@@ -102,8 +128,11 @@ int main(int argc, char * argv[]) {
         H_tweeter[i] = tweeter_branch;
         H_system_total[i] = woofer_branch + tweeter_branch;
     }
-
-    plot_t_funcs(H_system_total, H_driver_woofer, H_driver_tweeter, H_woofer, H_tweeter, s, json_f["box_type"] == "sealed" ? "Sealed Box System" : "Vented Box System");
+    std::string box_type = json_f["box_type"];
+    std::string cross_mode = json_f["crossover"]["mode"];
+	std::string title = std::format("{} {} {}-order {}-drive System", box_type, cross_mode, json_f["crossover"]["order"], json_f["drivers"].size());
+	
+    plot_t_funcs(H_system_total, H_driver_woofer, H_driver_tweeter, H_woofer, H_tweeter, s, title);
 
     // Directivity
     std::vector<double> angles_deg;
@@ -122,7 +151,11 @@ int main(int argc, char * argv[]) {
 
     export_sonogram_data("sonogram_data.csv", freqs, angles_deg, sonogram_matrix);
     int result = std::system("python3 sonogram.py");
-    std::cout << "Sonogram matrix exported to sonogram_data.csv successfully.\n";
+    if (result != 0) {
+        std::cerr << "Could not run Python Sonogram code";
+    } else {
+        std::cout << "Sonogram matrix exported to sonogram_data.csv successfully.\n";
+    }
     return 0;
 
 }

@@ -10,5 +10,6 @@
 double eff_piston_r(double Sd, double w);
 std::vector<std::complex<double>> delay_transfer(std::vector<std::complex<double>> s, double d);
 std::vector<std::complex<double>> driver_measured(const std::string frd_file, const std::vector<double> sim_freqs);
+std::vector<std::complex<double>> zma_measured(const std::string zma_file, const std::vector<double> sim_freqs);
 
 #endif // driver_h_INCLUDED

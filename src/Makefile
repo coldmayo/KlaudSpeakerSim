@@ -1,7 +1,7 @@
 TARGET = speaker_sim
 
 CXX = g++
-CXXFLAGS = -O2 -std=c++17 -Wall
+CXXFLAGS = -O2 -std=c++20 -Wall
 
 PYTHON_CFLAGS := $(shell python3-config --cflags)
 PYTHON_LDFLAGS := $(shell python3-config --ldflags --embed 2>/dev/null || python3-config --ldflags)

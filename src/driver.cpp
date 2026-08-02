@@ -75,6 +75,52 @@ std::vector<std::complex<double>> driver_measured(const std::string frd_file, co
     return H_driver;
 }
 
+std::vector<std::complex<double>> zma_measured(const std::string zma_file, const std::vector<double> sim_freqs) {
+    zma raw_data = parsing_zma(zma_file);
+    std::vector<std::complex<double>> Z_driver(sim_freqs.size(), std::complex<double>(8.0, 0.0));
+
+    if (raw_data.freq.empty()) {
+        std::cerr << "Warning: Empty ZMA data loaded from " << zma_file << std::endl;
+        return Z_driver;
+    }
+
+    int raw_size = raw_data.freq.size();
+    int raw_i = 0;
+
+    for (size_t i = 0; i < sim_freqs.size(); ++i) {
+        double f = sim_freqs[i];
+
+        if (f <= raw_data.freq.front()) {
+            double mag_ohms = raw_data.imp.front();
+            double rad = raw_data.phase.front() * DEG2RAD;
+            Z_driver[i] = std::polar(mag_ohms, rad);
+            continue;
+        }
+        if (f >= raw_data.freq.back()) {
+            double mag_ohms = raw_data.imp.back();
+            double rad = raw_data.phase.back() * DEG2RAD;
+            Z_driver[i] = std::polar(mag_ohms, rad);
+            continue;
+        }
+
+        while (raw_i < raw_size - 1 && raw_data.freq[raw_i + 1] < f) {
+            raw_i++;
+        }
+
+        double f0 = raw_data.freq[raw_i];
+        double f1 = raw_data.freq[raw_i + 1];
+
+        double mag_ohms = interp(f, f0, f1, raw_data.imp[raw_i], raw_data.imp[raw_i + 1]);
+        double phase_deg = interp(f, f0, f1, raw_data.phase[raw_i], raw_data.phase[raw_i + 1]);
+
+        // Construct complex impedance in Ohms: Z = |Z| * e^(j * phase)
+        double phase_rad = phase_deg * DEG2RAD;
+        Z_driver[i] = std::polar(mag_ohms, phase_rad);
+    }
+
+    return Z_driver;
+}
+
 std::vector<std::complex<double>> delay_transfer(std::vector<std::complex<double>> s, double d) {
     const double c = 343.0;
     double delt = d/c;
