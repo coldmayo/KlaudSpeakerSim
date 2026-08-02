@@ -39,8 +39,9 @@ std::complex<double> element_imp(const json& elem, std::complex<double> s) {
     return std::complex<double>(1e-9, 0.0);
 }
 
-std::vector<std::complex<double>> pass_cross_abcd(const std::vector<std::complex<double>>& s, const std::vector<std::complex<double>>& Z_driver_zma, const json& branch_network) {
+std::pair<std::vector<std::complex<double>>, std::vector<std::complex<double>>> pass_cross_abcd(const std::vector<std::complex<double>>& s, const std::vector<std::complex<double>>& Z_driver_zma, const json& branch_network) {
     std::vector<std::complex<double>> H_branch(s.size());
+    std::vector<std::complex<double>> Z_in_branch(s.size());
 
     for (int i = 0; i < s.size(); ++i) {
         std::complex<double> Z_L = Z_driver_zma[i];
@@ -59,6 +60,7 @@ std::vector<std::complex<double>> pass_cross_abcd(const std::vector<std::complex
         }
 
         H_branch[i] = Z_L / (M_total.A * Z_L + M_total.B);
+        Z_in_branch[i] = (M_total.A * Z_L + M_total.B) / (M_total.C * Z_L + M_total.D);
     }
-    return H_branch;
+    return {H_branch, Z_in_branch};
 }

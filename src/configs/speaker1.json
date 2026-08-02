@@ -32,7 +32,7 @@
         "type": "linkwitz_riley",
         "order": 4,
         "crossover_freq_hz": 3000.0,
-        "mode": "active",
+        "mode": "passive",
         "woofer_branch": [
             {"type": "series_inductor", "L_h": 0.0012, "dcr_ohm": 0.25},
             {"type": "shunt_capacitor", "C_f": 0.000015},

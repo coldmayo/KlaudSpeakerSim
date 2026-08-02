@@ -105,18 +105,28 @@ int main(int argc, char * argv[]) {
     }
     std::vector<std::complex<double>> H_HP;
     std::vector<std::complex<double>> H_LP;
+    std::vector<std::complex<double>> Z_system(freqs.size());
+    std::vector<std::complex<double>> Z_woofer_in(freqs.size());
+    std::vector<std::complex<double>> Z_tweeter_in(freqs.size());
+
 	if (json_f["crossover"]["mode"] == "active") {
     	H_HP = select_crossover(json_f["crossover"]["type"], json_f["crossover"]["order"], s, omega_c, 0);
     	H_LP = select_crossover(json_f["crossover"]["type"], json_f["crossover"]["order"], s, omega_c, 1);
+    	Z_woofer_in = Z_woofer_zma;
+    	Z_tweeter_in = Z_tweeter_zma;
 	} else if (json_f["crossover"]["mode"] == "passive") {
-		if (json_f["crossover"].contains("tweeter_branch")) {
-            H_HP = pass_cross_abcd(s, Z_tweeter_zma, json_f["crossover"]["tweeter_branch"]);
+        if (json_f["crossover"].contains("tweeter_branch")) {
+            std::tie(H_HP, Z_tweeter_in) = pass_cross_abcd(s, Z_tweeter_zma, json_f["crossover"]["tweeter_branch"]);
         }
         if (json_f["crossover"].contains("woofer_branch")) {
-            H_LP = pass_cross_abcd(s, Z_woofer_zma, json_f["crossover"]["woofer_branch"]);
+            std::tie(H_LP, Z_woofer_in) = pass_cross_abcd(s, Z_woofer_zma, json_f["crossover"]["woofer_branch"]);
         }
 	}
-	
+
+	for (size_t i = 0; i < s.size(); ++i) {
+        Z_system[i] = (Z_woofer_in[i] * Z_tweeter_in[i]) / (Z_woofer_in[i] + Z_tweeter_in[i]);
+    }
+
     std::vector<std::complex<double>> H_system_total(freqs.size());
     std::vector<std::complex<double>> H_woofer(freqs.size());
     std::vector<std::complex<double>> H_tweeter(freqs.size());
@@ -133,6 +143,8 @@ int main(int argc, char * argv[]) {
 	std::string title = std::format("{} {} {}-order {}-drive System", box_type, cross_mode, json_f["crossover"]["order"], json_f["drivers"].size());
 	
     plot_t_funcs(H_system_total, H_driver_woofer, H_driver_tweeter, H_woofer, H_tweeter, s, title);
+    plot_imp(Z_system, s, "System Impedence");
+    plot_filter(H_HP, H_LP, s, "Filter Response");
 
     // Directivity
     std::vector<double> angles_deg;

@@ -42,3 +42,56 @@ void plot_t_funcs(const std::vector<std::complex<double>>& H, const std::vector<
     plt::save(title + ".png");
     plt::close();
 }
+
+void plot_imp(std::vector<std::complex<double>> Z, const std::vector<std::complex<double>>&s, std::string title) {
+    std::vector<double> freq(s.size());
+    std::vector<double> mag_Z_system(Z.size());
+    for (size_t i = 0; i < s.size(); ++i) {
+        double f = std::imag(s[i]) / (2.0 * M_PI);
+        freq.push_back(f);
+        mag_Z_system.push_back(20.0 * std::log10(std::abs(Z[i])));
+    }
+
+    plt::figure_size(1200, 780);
+
+    plt::named_semilogx("$Z_{System}$", freq, mag_Z_system);
+
+    plt::grid(true);
+    
+    plt::xlabel("Frequency (Hz)");
+    plt::ylabel("Impedence ($\Omega$)");
+
+    plt::legend();
+
+    plt::save(title + ".png");
+    plt::close();
+}
+
+void plot_filter(const std::vector<std::complex<double>>& H_HP, const std::vector<std::complex<double>>& H_LP, const std::vector<std::complex<double>>& s, std::string title) {
+    std::vector<double> freq(s.size());
+    std::vector<double> mag_LP_db(s.size());
+    std::vector<double> mag_HP_db(s.size());
+
+    for (size_t i = 0; i < s.size(); ++i) {
+        double f = std::imag(s[i]) / (2.0 * M_PI);
+        freq[i] = f;
+
+        mag_LP_db[i] = 20.0 * std::log10(std::abs(H_LP[i]) + 1e-12);
+        mag_HP_db[i] = 20.0 * std::log10(std::abs(H_HP[i]) + 1e-12);
+    }
+
+    plt::figure_size(1200, 780);
+
+    plt::named_semilogx("Woofer Filter (LP)", freq, mag_LP_db);
+    plt::named_semilogx("Tweeter Filter (HP)", freq, mag_HP_db);
+
+    plt::grid(true);
+
+    plt::xlabel("Frequency (Hz)");
+    plt::ylabel("Transfer Function (dB)");
+
+    plt::legend();
+
+    plt::save(title + ".png");
+    plt::close();
+}

@@ -13,6 +13,11 @@ struct ABCD {
     std::complex<double> A, B, C, D;
 };
 
-std::vector<std::complex<double>> pass_cross_abcd(const std::vector<std::complex<double>>& s, const std::vector<std::complex<double>>& Z_driver_zma, const json& branch_network);
+struct PassiveCrossoverResult {
+    std::vector<std::complex<double>> H_branch;
+    std::vector<std::complex<double>> Z_in;
+};
+
+std::pair<std::vector<std::complex<double>>, std::vector<std::complex<double>>> pass_cross_abcd(const std::vector<std::complex<double>>& s, const std::vector<std::complex<double>>& Z_driver_zma, const json& branch_network);
 
 #endif // crossover_passive_h_INCLUDED
