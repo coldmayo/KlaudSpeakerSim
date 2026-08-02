@@ -2,6 +2,23 @@
 #include "include/parsing.h"
 
 constexpr double DEG2RAD = 3.14159265358979323846 / 180.0;
+constexpr double PI = 3.14159265358979323846;
+
+
+double eff_piston_r(double Sd_cm2, double w_cm) {
+    double r_cm = 0.0;
+
+    if (Sd_cm2 > 0.0) {
+        r_cm = std::sqrt(Sd_cm2 / M_PI);
+    }
+    else if (w_cm > 0.0) {
+        r_cm = w_cm / 2.0;
+    }
+    else {
+        r_cm = 5.0;
+    }
+    return r_cm / 100.0;
+}
 
 double interp(double x, double x0, double x1, double y0, double y1) {
     return y0 + (x - x0) * (y1 - y0) / (x1 - x0);

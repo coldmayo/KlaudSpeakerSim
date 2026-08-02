@@ -16,14 +16,16 @@
             "frd_path": "driverFiles/Audax AM100G2.frd",
             "zma_path": "driverFiles/Audax AM100G2.zma",
             "physical_delay_m": 0.0,
-            "attenuation_db": 0.0
+            "attenuation_db": 0.0,
+            "eff_surface_area": 25.75
         },
         {
             "type": "tweeter",
             "frd_path": "driverFiles/Fountek JP-3.frd",
             "zma_path": "driverFiles/Fountek JP-3.zma",
-            "physical_delay_m": 0.02,
-            "attenuation_db": -2.5
+            "physical_delay_m": 0.018,
+            "attenuation_db": -2.5,
+            "w_ribbon_strip": 0.8
         }
     ],
     "crossover": {
