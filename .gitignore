@@ -1,0 +1,5 @@
+*.o
+speaker_sim
+*.png
+myenv
+sonogram_data.csv

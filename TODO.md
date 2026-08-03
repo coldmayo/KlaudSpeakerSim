@@ -1,0 +1,13 @@
+- [ ] command line tool where you feed data in and get frequency response back
+	- [x] sealed-box transfer function
+	- [x] vented-box transfer function
+	- [x] basic RLC network solver (complex impedance, series/parallel combination) for a simple passive crossover
+	- [x] FRD/ZMA file parser
+	- [ ] solve for T/S parameters
+	- [ ] Baffle Edge Diffraction Engine
+	- [ ] Power Handling & Thermal/Excursion Limits
+	- [ ] Crossover Component Optimizer
+	- [ ] In-Room Frequency Response
+- [ ] GUI
+	- [ ] Save load project as JSON
+	- [ ] Crossover editor

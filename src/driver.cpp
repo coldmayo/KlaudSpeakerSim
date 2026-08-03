@@ -1,9 +1,8 @@
 #include "include/driver.h"
 #include "include/parsing.h"
 
-constexpr double DEG2RAD = 3.14159265358979323846 / 180.0;
 constexpr double PI = 3.14159265358979323846;
-
+constexpr double DEG2RAD = PI / 180.0;
 
 double eff_piston_r(double Sd_cm2, double w_cm) {
     double r_cm = 0.0;
