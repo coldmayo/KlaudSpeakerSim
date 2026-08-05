@@ -1,6 +1,8 @@
 {
     "box_type": "sealed",
     "fs_hz": 35.0,
+    "V_in_tweeter": 2.83,
+    "V_in_woofer": 2.83,
     "sealed_params": {
       "Qtc": 0.707
     },
@@ -10,6 +12,12 @@
       "volume_ratio_alpha": 1.00,
       "leakage_QL": 7.0
     },
+    "baffle": {
+        "width_m": 0.25,
+        "height_m": 0.90,
+        "listener_dist_m": 1.0,
+        "edge_segments_per_side": 20
+    },
     "drivers": [
         {
             "type": "woofer",
@@ -17,7 +25,9 @@
             "zma_path": "driverFiles/Audax AM100G2.zma",
             "physical_delay_m": 0.0,
             "attenuation_db": 0.0,
-            "eff_surface_area": 25.75
+            "eff_surface_area": 25.75,
+            "pos_x_m": 0.11,
+            "pos_y_m": 0.50
         },
         {
             "type": "tweeter",
@@ -25,7 +35,9 @@
             "zma_path": "driverFiles/Fountek JP-3.zma",
             "physical_delay_m": 0.018,
             "attenuation_db": -2.5,
-            "w_ribbon_strip": 0.8
+            "w_ribbon_strip": 0.8,
+            "pos_x_m": 0.11,
+            "pos_y_m": 0.70
         }
     ],
     "crossover": {

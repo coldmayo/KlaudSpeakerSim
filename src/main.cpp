@@ -12,6 +12,7 @@
 #include "include/crossover.h"
 #include "include/directivity.h"
 #include "include/crossover_passive.h"
+#include "include/baffle.h"
 
 using json = nlohmann::json;
 
@@ -40,10 +41,19 @@ int main(int argc, char * argv[]) {
     std::vector<std::complex<double>> Z_woofer_zma(s.size(), std::complex<double>(8.0, 0.0));
     std::vector<std::complex<double>> Z_tweeter_zma(s.size(), std::complex<double>(8.0, 0.0));
 
+    double baffle_w = json_f.value("baffle", json::object()).value("width_m", 0.20);
+    double baffle_h = json_f.value("baffle", json::object()).value("height_m", 0.35);
+    double listener_z = json_f.value("baffle", json::object()).value("listener_dist_m", 1.0);
+    double dl_step = json_f.value("baffle", json::object()).value("dl_step_m", 0.002);
+    double fs_baffle = json_f.value("baffle", json::object()).value("fs_hz", 96000.0);
+    int num_samples = json_f.value("baffle", json::object()).value("num_samples", 2048);
+
+	// Gather data from zma and frd files
     std::string type;
     std::string frd_file;
     std::string zma_file;
     double d;
+
     for (const auto& d_json : json_f["drivers"]) {
         type = d_json["type"];
         frd_file = d_json["frd_path"];
@@ -54,11 +64,43 @@ int main(int argc, char * argv[]) {
         double y_offset = d;
         double radius_m = eff_piston_r(Sd, w);
 
+		source_coords s_c{
+            d_json.value("pos_x_m", baffle_w / 2.0),
+            d_json.value("pos_y_m", 0.10)
+        };
+
+        listener_coords l_c{s_c.x, s_c.y, listener_z};
+
         auto H_raw = driver_measured(frd_file, freqs);
         auto H_delay = delay_transfer(s, d);
 
+        auto H_raw_fft = b_response(baffle_w, baffle_h, radius_m, dl_step, fs_baffle, num_samples, s_c, l_c);
+        double R_direct = std::sqrt((l_c.x - s_c.x)*(l_c.x - s_c.x) + (l_c.y - s_c.y)*(l_c.y - s_c.y) + (l_c.z)*(l_c.z));
+        double p_direct_amp = 2.0 / R_direct;
+        std::vector<std::complex<double>> H_baffle(s.size(), 1.0);
+        for (size_t j = 0; j < freqs.size(); ++j) {
+            double f = freqs[j];
+            double bin_float = f * num_samples / fs_baffle;
+            int bin0 = std::clamp(static_cast<int>(std::floor(bin_float)), 0, num_samples - 1);
+            int bin1 = std::clamp(bin0 + 1, 0, num_samples - 1);
+
+            double frac = bin_float - bin0;
+            std::complex<double> H_fft_interp = H_raw_fft[bin0] * (1.0 - frac) + H_raw_fft[bin1] * frac;
+
+            double w_k = (2.0 * PI * f) / 343.0;
+            double kp = w_k * radius_m;
+            double driver_filter = 1.0;
+            if (kp > 1e-6) {
+                driver_filter = 2.0 * j1(kp) / kp;
+            }
+
+            std::complex<double> H_direct(p_direct_amp, 0.0);
+            std::complex<double> H_diffracted = (H_fft_interp - H_direct) * driver_filter; // Directivity scaled[cite: 1]
+            H_baffle[j] = (H_direct + H_diffracted) / p_direct_amp; // Relative transfer factor
+        }
+
         for (size_t j = 0; j < s.size(); ++j) {
-            std::complex<double> H_delayed_driver = H_raw[j] * H_delay[j];
+            std::complex<double> H_delayed_driver = H_raw[j] * H_delay[j]* H_baffle[j];
             if (type == "woofer") {
                 H_driver_woofer[j] += H_delayed_driver;
             } else if (type == "tweeter") {
@@ -90,7 +132,7 @@ int main(int argc, char * argv[]) {
     double omega_c = 2.0 * PI * fc;
     std::vector<std::complex<double>> H_box(s.size(), 1.0);
 
-    // Sealed Box (Butterworth B2)
+    // Get transfer functions describing the enclosure of a loudspeaker
     if (json_f["box_type"] == "sealed") {
         double Qtc = json_f["sealed_params"]["Qtc"];
         H_box = sealed_transfer(s, omega_0, Qtc);
@@ -109,6 +151,7 @@ int main(int argc, char * argv[]) {
     std::vector<std::complex<double>> Z_woofer_in(freqs.size());
     std::vector<std::complex<double>> Z_tweeter_in(freqs.size());
 
+	// finding the transfer function for active or passive crossover circuits
 	if (json_f["crossover"]["mode"] == "active") {
     	H_HP = select_crossover(json_f["crossover"]["type"], json_f["crossover"]["order"], s, omega_c, 0);
     	H_LP = select_crossover(json_f["crossover"]["type"], json_f["crossover"]["order"], s, omega_c, 1);
@@ -123,10 +166,12 @@ int main(int argc, char * argv[]) {
         }
 	}
 
+	// Finding the systems impulse response
 	for (size_t i = 0; i < s.size(); ++i) {
         Z_system[i] = (Z_woofer_in[i] * Z_tweeter_in[i]) / (Z_woofer_in[i] + Z_tweeter_in[i]);
     }
 
+	// finding the total system frequency response
     std::vector<std::complex<double>> H_system_total(freqs.size());
     std::vector<std::complex<double>> H_woofer(freqs.size());
     std::vector<std::complex<double>> H_tweeter(freqs.size());
@@ -138,6 +183,8 @@ int main(int argc, char * argv[]) {
         H_tweeter[i] = tweeter_branch;
         H_system_total[i] = woofer_branch + tweeter_branch;
     }
+
+    // Plotting
     std::string box_type = json_f["box_type"];
     std::string cross_mode = json_f["crossover"]["mode"];
 	std::string title = std::format("{} {} {}-order {}-drive System", box_type, cross_mode, json_f["crossover"]["order"], json_f["drivers"].size());
@@ -145,6 +192,14 @@ int main(int argc, char * argv[]) {
     plot_t_funcs(H_system_total, H_driver_woofer, H_driver_tweeter, H_woofer, H_tweeter, s, title);
     plot_imp(Z_system, s, "System Impedence");
     plot_filter(H_HP, H_LP, s, "Filter Response");
+
+	// Power
+	std::vector<double> P_woofer(s.size()), P_tweeter(s.size());
+	double V_in = json_f.value("V_in_tweeter", 2.83);
+	for (int i = 0; i < s.size(); ++i) {
+    	P_woofer[i]  = (V_in * V_in * std::abs(H_LP[i]) * std::abs(H_LP[i])) / std::real(Z_woofer_in[i]);
+        P_tweeter[i] = (V_in * V_in * std::abs(H_HP[i]) * std::abs(H_HP[i])) / std::real(Z_tweeter_in[i]);
+	}
 
     // Directivity
     std::vector<double> angles_deg;
