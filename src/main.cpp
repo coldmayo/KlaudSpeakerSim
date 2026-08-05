@@ -200,6 +200,7 @@ int main(int argc, char * argv[]) {
     	P_woofer[i]  = (V_in * V_in * std::abs(H_LP[i]) * std::abs(H_LP[i])) / std::real(Z_woofer_in[i]);
         P_tweeter[i] = (V_in * V_in * std::abs(H_HP[i]) * std::abs(H_HP[i])) / std::real(Z_tweeter_in[i]);
 	}
+	plot_power(P_woofer, P_tweeter, s, "Power Dissipation");
 
     // Directivity
     std::vector<double> angles_deg;

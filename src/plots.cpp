@@ -95,3 +95,30 @@ void plot_filter(const std::vector<std::complex<double>>& H_HP, const std::vecto
     plt::save(title + ".png");
     plt::close();
 }
+
+void plot_power(const std::vector<double>& P_woofer, const std::vector<double>& P_tweeter, const std::vector<std::complex<double>>& s, std::string title) {
+    std::vector<double> freq(s.size());
+    std::vector<double> P_total(s.size());
+
+    for (size_t i = 0; i < s.size(); ++i) {
+        double f = std::imag(s[i]) / (2.0 * M_PI);
+        freq[i] = f;
+        P_total[i] = P_woofer[i] + P_tweeter[i];
+    }
+
+    plt::figure_size(1200, 780);
+
+    plt::named_semilogx("Woofer Power", freq, P_woofer);
+    plt::named_semilogx("Tweeter Power", freq, P_tweeter);
+    plt::named_semilogx("Total System Power", freq, P_total);
+
+    plt::grid(true);
+
+    plt::xlabel("Frequency (Hz)");
+    plt::ylabel("Active Power (W)");
+
+    plt::legend();
+
+    plt::save(title + ".png");
+    plt::close();
+}
