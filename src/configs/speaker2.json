@@ -1,0 +1,72 @@
+{
+    "box_type": "sealed",
+    "fs_hz": 35.0,
+    "V_in_tweeter": 2.83,
+    "V_in_woofer": 2.83,
+    "sealed_params": {
+      "Qtc": 0.707
+    },
+    "vented_params": {
+      "Qts": 0.40,
+      "tuning_ratio_h": 1.00,
+      "volume_ratio_alpha": 1.00,
+      "leakage_QL": 7.0
+    },
+    "baffle": {
+        "width_m": 0.25,
+        "height_m": 0.90,
+        "listener_dist_m": 1.0,
+        "edge_segments_per_side": 20
+    },
+    "drivers": [
+        {
+            "type": "woofer",
+            "name": "Audax_AP100Z0",
+            "frd_path": "driverFiles/Audax_AP100Z0.frd",
+            "zma_path": "driverFiles/Audax_AP100Z0.zma",
+            "physical_delay_m": 0.0,
+            "attenuation_db": 0.0,
+            "eff_surface_area": 0.00503,
+            "pos_x_m": 0.11,
+            "pos_y_m": 0.50,
+            "fund_TS_params": {
+                "M_ms": 0.00550,
+                "V_as": 0.00280
+            }
+        },
+        {
+            "type": "tweeter",
+            "t_type": "dome",
+            "name": "Morel MDT40-1",
+            "frd_path": "driverFiles/Morel MDT40-spec.frd",
+            "zma_path": "driverFiles/Morel MDT40-1.zma",
+            "physical_delay_m": 0.008,
+            "attenuation_db": -2.5,
+            "eff_surface_area": 0.00071,
+            "pos_x_m": 0.11,
+            "pos_y_m": 0.70,
+            "fund_TS_params": {
+                "M_ms": 0.00048
+            }
+        }
+    ],
+    "crossover": {
+        "type": "linkwitz_riley",
+        "order": 4,
+        "crossover_freq_hz": 3000.0,
+        "mode": "passive",
+        "woofer_branch": [
+            {"type": "series_inductor", "L_h": 0.0012, "dcr_ohm": 0.25},
+            {"type": "shunt_capacitor", "C_f": 0.000015},
+            {"type": "series_inductor", "L_h": 0.00068, "dcr_ohm": 0.18},
+            {"type": "shunt_capacitor", "C_f": 0.0000068},
+            {"type": "zobel_network",   "R_ohm": 6.8, "C_f": 0.000022 }
+        ],
+        "tweeter_branch": [
+            {"type": "series_capacitor", "C_f": 0.0000047},
+            {"type": "shunt_inductor",  "L_h": 0.0006, "dcr_ohm": 0.15},
+            {"type": "series_resistor", "R_ohm": 2.2},
+            {"type": "shunt_resistor", "R_ohm": 18.0}
+        ]
+    }
+}
