@@ -13,6 +13,8 @@
 #include "include/directivity.h"
 #include "include/crossover_passive.h"
 #include "include/baffle.h"
+#include "include/parsing.h"
+#include "include/Thiele_Small.h"
 
 using json = nlohmann::json;
 
@@ -123,6 +125,32 @@ int main(int argc, char * argv[]) {
             } else if (type == "tweeter") {
                 Z_tweeter_zma = Z_interp;
             }
+        }
+
+        // Find T/S Parameters
+        if (d_json.contains("fund_TS_params") && d_json["t_type"] != "ribbon") {
+            zma_data z_ = zma_interp(parsing_zma(zma_file), 250);
+            double M_ms = d_json["fund_TS_params"]["M_ms"]; 
+            double V_as = d_json["fund_TS_params"]["V_as"];
+            double S_d = d_json["eff_surface_area"];
+        	double Cms = C_ms(V_as, S_d);
+        	double fs = f_s(M_ms, Cms);
+        	double Qts = Q_ts(z_.Q_es, z_.Q_ms);
+        	double Bl = B_l(fs, M_ms, z_.R_e, z_.Q_es);
+            double n0 = n_0(fs, V_as, z_.Q_es);
+            double SPL_1W = SPL1W(n0);
+            double SPL_283 = SPL283(SPL_1W, z_.R_e);
+            double XL = X_L(z_.Z_high, z_.R_e);
+            double Le = L_e(XL, z_.f_high);
+            double EBP_ = EBP(fs, z_.Q_es);
+        	std::cout << "T/S Parameters of the" << d_json["name"] << " Driver:\nC_ms: " << Cms << "\nf_s: " << fs << "\nQts: " << Qts << "\nBl: " << Bl << "\nQ_es: " << z_.Q_es << "\nQ_m: " << z_.Q_ms << "\nn_0: " << n0 << "\nSPL_1W: " << SPL_1W << "\nSPL_2.83W: " << SPL_283 << "\nX_L: " << XL << "\nL_e: " << Le << "\nEBP: " << EBP_ << "\n\n" << std::endl;
+        } else if (d_json["t_type"] == "ribbon") {
+            zma_data z_ = zma_interp(parsing_zma(zma_file), 20000);
+            double M_ms = d_json["fund_TS_params"]["M_ms"];
+            double S_d = d_json["eff_surface_area"];
+            double XL = X_L(z_.Z_high, z_.R_e);
+            double Le = L_e(XL, z_.f_high);
+            std::cout << "T/S Parameters of the" << d_json["name"] << " Driver:" << "\nX_L: " << XL << "\nL_e: " << Le << "\n\n" << std::endl;
         }
     }
 

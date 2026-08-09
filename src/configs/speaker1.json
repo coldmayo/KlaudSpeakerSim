@@ -21,23 +21,33 @@
     "drivers": [
         {
             "type": "woofer",
+            "name": "Audax AM100G2",
             "frd_path": "driverFiles/Audax AM100G2.frd",
             "zma_path": "driverFiles/Audax AM100G2.zma",
             "physical_delay_m": 0.0,
             "attenuation_db": 0.0,
-            "eff_surface_area": 25.75,
+            "eff_surface_area": 0.00541,
             "pos_x_m": 0.11,
-            "pos_y_m": 0.50
+            "pos_y_m": 0.50,
+            "fund_TS_params": {
+                "M_ms": 0.00542,
+                "V_as": 0.00356
+            }
         },
         {
             "type": "tweeter",
+            "t_type": "ribbon",
+            "name": "Fountek JP-3",
             "frd_path": "driverFiles/Fountek JP-3.frd",
             "zma_path": "driverFiles/Fountek JP-3.zma",
             "physical_delay_m": 0.018,
             "attenuation_db": -2.5,
-            "w_ribbon_strip": 0.8,
+            "eff_surface_area": 0.00000459,
             "pos_x_m": 0.11,
-            "pos_y_m": 0.70
+            "pos_y_m": 0.70,
+            "fund_TS_params": {
+                "M_ms": 0.000011
+            }
         }
     ],
     "crossover": {
