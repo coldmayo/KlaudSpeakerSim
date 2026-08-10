@@ -13,7 +13,18 @@ double piston_dir(double f, double theta_rad, double a) {
     return 2.0 * std::cyl_bessel_j(1, x) / x;
 }
 
-// Corrected function signature and implementation
+double ribbon_dir(double f, double theta_rad, double half_length) {
+    if (std::abs(theta_rad) < 1e-6 || half_length <= 0.0 || f <= 0.0) {
+        return 1.0;
+    }
+    const double c = 343.0;
+    double k = 2.0 * PI * f / c;
+    double x = k * half_length * std::sin(theta_rad);
+    if (std::abs(x) < 1e-9) return 1.0;   // avoid 0/0 at theta=0
+    return std::sin(x) / x;
+
+}
+
 std::complex<double> angular_delay(std::complex<double> s_val, double offset_m, double theta_rad) {
     constexpr double c = 343.0; // speed of sound in m/s
     double delta_d = offset_m * std::sin(theta_rad);
@@ -34,32 +45,41 @@ std::vector<std::complex<double>> polar_response(
     std::vector<std::complex<double>> H_theta(s.size());
 
     for (size_t i = 0; i < s.size(); ++i) {
-        double D_w = 0.0;
-        std::complex<double> delay_w(0.0, 0.0);
+        std::complex<double> H_spatial_w(0.0, 0.0);
 
         if (!woofer_a.empty()) {
             for (size_t j = 0; j < woofer_a.size(); ++j) {
-                D_w += piston_dir(freqs[i], theta_rad, woofer_a[j]);
-                delay_w += angular_delay(s[i], woofer_offset_m[j], theta_rad);
+                double directivity = piston_dir(freqs[i], theta_rad, woofer_a[j]);
+                std::complex<double> phase_rot = angular_delay(s[i], woofer_offset_m[j], theta_rad);
+                H_spatial_w += directivity * phase_rot;
             }
-            D_w /= static_cast<double>(woofer_a.size());
-            delay_w /= static_cast<double>(woofer_a.size());
+            H_spatial_w /= static_cast<double>(woofer_a.size());
+        } else {
+            H_spatial_w = 1.0;
         }
 
-        double D_t = 0.0;
-        std::complex<double> delay_t(0.0, 0.0);
+        std::complex<double> H_spatial_t(0.0, 0.0);
 
         if (!tweeter_a.empty()) {
             for (size_t j = 0; j < tweeter_a.size(); ++j) {
-                D_t += piston_dir(freqs[i], theta_rad, tweeter_a[j]);
-                delay_t += angular_delay(s[i], tweeter_offset_m[j], theta_rad);
+                double directivity = ribbon_dir(freqs[i], theta_rad, tweeter_a[j]);
+                std::complex<double> phase_rot = angular_delay(s[i], tweeter_offset_m[j], theta_rad);
+                H_spatial_t += directivity * phase_rot;
             }
-            D_t /= static_cast<double>(tweeter_a.size());
-            delay_t /= static_cast<double>(tweeter_a.size());
+            H_spatial_t /= static_cast<double>(tweeter_a.size());
+        } else {
+            H_spatial_t = 1.0;
         }
 
-        H_theta[i] = (H_woofer_branch[i] * D_w * delay_w) + (H_tweeter_branch[i] * D_t * delay_t);
+        H_theta[i] = (H_woofer_branch[i] * H_spatial_w) + (H_tweeter_branch[i] * H_spatial_t);
     }
+
+    std::cerr << "woofer a=" << woofer_a[0]
+    << " f=500 D=" << piston_dir(500.0, PI/2, woofer_a[0])
+    << " f=5000 D=" << piston_dir(5000.0, PI/2, woofer_a[0]) << "\n";
+    std::cerr << "tweeter a=" << tweeter_a[0]
+    << " f=2000 D=" << piston_dir(2000.0, PI/2, tweeter_a[0])
+    << " f=18000 D=" << piston_dir(18000.0, PI/2, tweeter_a[0]) << "\n";
 
     return H_theta;
 }

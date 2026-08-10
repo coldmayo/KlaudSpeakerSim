@@ -16,7 +16,7 @@ double eff_piston_r(double Sd_cm2, double w_cm) {
     else {
         r_cm = 5.0;
     }
-    return r_cm / 100.0;
+    return r_cm;
 }
 
 double interp(double x, double x0, double x1, double y0, double y1) {

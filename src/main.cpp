@@ -230,6 +230,8 @@ int main(int argc, char * argv[]) {
 	}
 	plot_power(P_woofer, P_tweeter, s, "Power Dissipation");
 
+	plot_phase(H_system_total, s, "Group and Phase Delay");
+
     // Directivity
     std::vector<double> angles_deg;
     for (double deg = -90.0; deg <= 90.0; deg += 2.0) {

@@ -6,6 +6,91 @@
 
 namespace plt = matplotlibcpp;
 
+constexpr double PI = 3.14159265358979323846;
+
+std::vector<double> phase_angle(const std::vector<std::complex<double>> & H) {
+    std::vector<double> phi(H.size());
+
+    for (int i = 0; i < H.size(); ++i) {
+        phi[i] = std::atan2(H[i].imag(), H[i].real());
+    }
+    return phi;
+}
+
+std::vector<double> unwrap_phase(const std::vector<double>& phi) {
+    std::vector<double> unwrapped(phi.size());
+    if (phi.empty()) return unwrapped;
+
+    unwrapped[0] = phi[0];
+    double offset = 0.0;
+    for (size_t i = 1; i < phi.size(); ++i) {
+        double delta = phi[i] - phi[i - 1];
+        if (delta > PI)       offset -= 2.0 * PI;
+        else if (delta < -PI) offset += 2.0 * PI;
+        unwrapped[i] = phi[i] + offset;
+    }
+    return unwrapped;
+}
+
+std::vector<double> phase_delay(std::vector<double> p_a, std::vector<double> omega) {
+    std::vector<double> tau_p(p_a.size());
+    for (size_t i = 0; i < p_a.size(); ++i) {
+        tau_p[i] = (omega[i] > 0.0) ? -p_a[i] / omega[i] : 0.0;
+    }
+    return tau_p;
+}
+
+std::vector<double> group_delay(const std::vector<double>& phi_unwrapped, const std::vector<double>& omega) {
+    size_t N = phi_unwrapped.size();
+    std::vector<double> tau_g(N, 0.0);
+    if (N < 2) return tau_g;
+
+    tau_g[0] = -(phi_unwrapped[1] - phi_unwrapped[0]) / (omega[1] - omega[0]);
+
+    for (size_t i = 1; i < N - 1; ++i) {
+        tau_g[i] = -(phi_unwrapped[i + 1] - phi_unwrapped[i - 1])
+                   / (omega[i + 1] - omega[i - 1]);
+    }
+
+    tau_g[N - 1] = -(phi_unwrapped[N - 1] - phi_unwrapped[N - 2])
+                   / (omega[N - 1] - omega[N - 2]);
+
+    return tau_g;
+}
+
+void plot_phase(const std::vector<std::complex<double>>& H, const std::vector<std::complex<double>>& s, std::string title) {
+    auto phi = phase_angle(H);
+	auto phi_uw = unwrap_phase(phi);
+	std::vector<double> omega(s.size());
+
+	for (int i = 0; i < s.size(); ++i) {
+    	omega[i] = s[i].imag();
+	}
+	
+	auto tau_p = phase_delay(phi_uw, omega);
+	auto tau_g = group_delay(phi_uw, omega);
+
+	std::vector<double> freq(s.size());
+	for (size_t i = 0; i < s.size(); ++i) {
+		freq[i] = std::imag(s[i]) / (2.0 * M_PI);
+	}
+
+	plt::figure_size(1200, 780);
+
+    plt::named_semilogx("Group Delay", freq, tau_g);
+    plt::named_semilogx("Phase Delay", freq, tau_p);
+    plt::grid(true);
+
+    plt::xlabel("Frequency (Hz)");
+    plt::ylabel("Samples");
+    plt::title(title);
+
+    plt::legend();
+
+    plt::save(title + ".png");
+    plt::close();
+}
+
 void plot_t_funcs(const std::vector<std::complex<double>>& H, const std::vector<std::complex<double>>& H_woofer, const std::vector<std::complex<double>>& H_tweeter, const std::vector<std::complex<double>>& H_woofer_filt, const std::vector<std::complex<double>>& H_tweeter_filt, const std::vector<std::complex<double>>& s,const std::string& title) {
     std::vector<double> freq(s.size());
     std::vector<double> mag_db_system(H.size());
@@ -122,3 +207,5 @@ void plot_power(const std::vector<double>& P_woofer, const std::vector<double>& 
     plt::save(title + ".png");
     plt::close();
 }
+
+
