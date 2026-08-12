@@ -32,6 +32,19 @@
             "fund_TS_params": {
                 "M_ms": 0.00550,
                 "V_as": 0.00280
+            },
+            "crossover": {
+                "mode": "passive",
+                "type": "linkwitz_riley",
+                "order": 4,
+                "crossover_freq_hz": 3000.0,
+                "branch": [
+                    {"type": "series_inductor", "L_h": 0.0012, "dcr_ohm": 0.25},
+                    {"type": "shunt_capacitor", "C_f": 0.000015},
+                    {"type": "series_inductor", "L_h": 0.00068, "dcr_ohm": 0.18},
+                    {"type": "shunt_capacitor", "C_f": 0.0000068},
+                    {"type": "zobel_network",   "R_ohm": 6.8, "C_f": 0.000022 }
+                ]
             }
         },
         {
@@ -47,26 +60,19 @@
             "pos_y_m": 0.70,
             "fund_TS_params": {
                 "M_ms": 0.00048
+            },
+            "crossover": {
+                "mode": "passive",
+                "type": "linkwitz_riley",
+                "order": 4,
+                "crossover_freq_hz": 3000.0,
+                "branch": [
+                    {"type": "series_capacitor", "C_f": 0.0000047},
+                    {"type": "shunt_inductor",  "L_h": 0.0006, "dcr_ohm": 0.15},
+                    {"type": "series_resistor", "R_ohm": 2.2},
+                    {"type": "shunt_resistor", "R_ohm": 18.0}
+                ]
             }
         }
-    ],
-    "crossover": {
-        "type": "linkwitz_riley",
-        "order": 4,
-        "crossover_freq_hz": 3000.0,
-        "mode": "passive",
-        "woofer_branch": [
-            {"type": "series_inductor", "L_h": 0.0012, "dcr_ohm": 0.25},
-            {"type": "shunt_capacitor", "C_f": 0.000015},
-            {"type": "series_inductor", "L_h": 0.00068, "dcr_ohm": 0.18},
-            {"type": "shunt_capacitor", "C_f": 0.0000068},
-            {"type": "zobel_network",   "R_ohm": 6.8, "C_f": 0.000022 }
-        ],
-        "tweeter_branch": [
-            {"type": "series_capacitor", "C_f": 0.0000047},
-            {"type": "shunt_inductor",  "L_h": 0.0006, "dcr_ohm": 0.15},
-            {"type": "series_resistor", "R_ohm": 2.2},
-            {"type": "shunt_resistor", "R_ohm": 18.0}
-        ]
-    }
+    ]
 }

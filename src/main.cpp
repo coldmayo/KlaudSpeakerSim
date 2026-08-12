@@ -6,6 +6,7 @@
 #include <format>
 #include "json.hpp"
 
+#include "include/channel.h"
 #include "include/enclosure.h"
 #include "include/plots.h"
 #include "include/driver.h"
@@ -34,14 +35,7 @@ int main(int argc, char * argv[]) {
     std::vector<double> freqs = logspace(1, 4.301, 1000, 10);
     auto s = init_s(freqs);
 
-    std::vector<std::complex<double>> H_driver_woofer(s.size(), 0.0);
-    std::vector<std::complex<double>> H_driver_tweeter(s.size(), 0.0);
-
-    std::vector<double> woofer_a, tweeter_a;
-    std::vector<double> woofer_offset_m, tweeter_offset_m;
-
-    std::vector<std::complex<double>> Z_woofer_zma(s.size(), std::complex<double>(8.0, 0.0));
-    std::vector<std::complex<double>> Z_tweeter_zma(s.size(), std::complex<double>(8.0, 0.0));
+    std::map<std::string, Channel> channels;
 
     double baffle_w = json_f.value("baffle", json::object()).value("width_m", 0.20);
     double baffle_h = json_f.value("baffle", json::object()).value("height_m", 0.35);
@@ -66,7 +60,19 @@ int main(int argc, char * argv[]) {
         double y_offset = d;
         double radius_m = eff_piston_r(Sd, w);
 
-		source_coords s_c{
+        std::string channel_key = d_json.value("channel", type);
+        Channel& ch = channels[channel_key];
+        if (ch.H_driver.empty()) {
+            ch.H_driver.assign(s.size(), std::complex<double>(0.0, 0.0));
+            ch.Z_zma.assign(s.size(), std::complex<double>(8.0, 0.0));
+            ch.type = type;
+            ch.enclosure_loaded = d_json.value("enclosure_loaded", false);
+            ch.V_in = d_json.value("V_in", 2.83);
+            ch.crossover_cfg = d_json.value("crossover", json::object());
+        }
+
+
+		source_coords s_c {
             d_json.value("pos_x_m", baffle_w / 2.0),
             d_json.value("pos_y_m", 0.10)
         };
@@ -75,8 +81,8 @@ int main(int argc, char * argv[]) {
 
         auto H_raw = driver_measured(frd_file, freqs);
         auto H_delay = delay_transfer(s, d);
-
         auto H_raw_fft = b_response(baffle_w, baffle_h, radius_m, dl_step, fs_baffle, num_samples, s_c, l_c);
+
         double R_direct = std::sqrt((l_c.x - s_c.x)*(l_c.x - s_c.x) + (l_c.y - s_c.y)*(l_c.y - s_c.y) + (l_c.z)*(l_c.z));
         double p_direct_amp = 2.0 / R_direct;
         std::vector<std::complex<double>> H_baffle(s.size(), 1.0);
@@ -102,69 +108,56 @@ int main(int argc, char * argv[]) {
         }
 
         for (size_t j = 0; j < s.size(); ++j) {
-            std::complex<double> H_delayed_driver = H_raw[j] * H_delay[j]* H_baffle[j];
-            if (type == "woofer") {
-                H_driver_woofer[j] += H_delayed_driver;
-            } else if (type == "tweeter") {
-                H_driver_tweeter[j] += H_delayed_driver;
-            }
+            std::complex<double> H_delayed_driver = H_raw[j] * H_delay[j] * H_baffle[j];
+            ch.H_driver[j] += H_delayed_driver;
         }
 
-        if (type == "woofer") {
-            woofer_a.push_back(radius_m);
-            woofer_offset_m.push_back(y_offset);
-        } else if (type == "tweeter") {
-            tweeter_a.push_back(radius_m);
-            tweeter_offset_m.push_back(y_offset);
-        }
+        ch.radii.push_back(radius_m);
+        ch.offsets.push_back(y_offset);
 
         if (!zma_file.empty()) {
             auto Z_interp = zma_measured(zma_file, freqs);
-            if (type == "woofer") {
-                Z_woofer_zma = Z_interp;
-            } else if (type == "tweeter") {
-                Z_tweeter_zma = Z_interp;
-            }
+            ch.Z_zma = Z_interp;
         }
 
         // Find T/S Parameters
-        if (d_json.contains("fund_TS_params") && d_json["type"] != "tweeter") {
-            zma_data z_ = zma_interp(parsing_zma(zma_file), 250);
-            double M_ms = d_json["fund_TS_params"]["M_ms"]; 
-            double V_as = d_json["fund_TS_params"]["V_as"];
-            double S_d = d_json["eff_surface_area"];
-        	double Cms = C_ms(V_as, S_d);
-        	double fs = f_s(M_ms, Cms);
-        	double Qts = Q_ts(z_.Q_es, z_.Q_ms);
-        	double Bl = B_l(fs, M_ms, z_.R_e, z_.Q_es);
-            double n0 = n_0(fs, V_as, z_.Q_es);
-            double SPL_1W = SPL1W(n0);
-            double SPL_283 = SPL283(SPL_1W, z_.R_e);
-            double XL = X_L(z_.Z_high, z_.R_e);
-            double Le = L_e(XL, z_.f_high);
-            double EBP_ = EBP(fs, z_.Q_es);
-        	std::cout << "T/S Parameters of the " << d_json["name"] << " Driver:\nC_ms: " << Cms << "\nf_s: " << fs << "\nQts: " << Qts << "\nBl: " << Bl << "\nQ_es: " << z_.Q_es << "\nQ_m: " << z_.Q_ms << "\nn_0: " << n0 << "\nSPL_1W: " << SPL_1W << "\nSPL_2.83W: " << SPL_283 << "\nX_L: " << XL << "\nL_e: " << Le << "\nEBP: " << EBP_ << "\n\n" << std::endl;
-        } else if (d_json["type"] == "tweeter") {
-            zma_data z_ = zma_interp(parsing_zma(zma_file), 20000);
-            double M_ms = d_json["fund_TS_params"]["M_ms"];
-            double S_d = d_json["eff_surface_area"];
-            double XL = X_L(z_.Z_high, z_.R_e);
-            double Le = L_e(XL, z_.f_high);
-            std::cout << "T/S Parameters of the" << d_json["name"] << " Driver:" << "\nX_L: " << XL << "\nL_e: " << Le << "\n\n" << std::endl;
+        if (d_json.contains("fund_TS_params")) {
+            const auto& ts = d_json["fund_TS_params"];
+            if (ts.contains("V_as")) {
+                zma_data z_ = zma_interp(parsing_zma(zma_file), 250);
+                double M_ms = ts["M_ms"];
+                double V_as = ts["V_as"];
+                double Cms = C_ms(V_as, Sd);
+                double fs_d = f_s(M_ms, Cms);
+                double Qts = Q_ts(z_.Q_es, z_.Q_ms);
+                double Bl = B_l(fs_d, M_ms, z_.R_e, z_.Q_es);
+                double n0 = n_0(fs_d, V_as, z_.Q_es);
+                double SPL_1W = SPL1W(n0);
+                double SPL_283 = SPL283(SPL_1W, z_.R_e);
+                double XL = X_L(z_.Z_high, z_.R_e);
+                double Le = L_e(XL, z_.f_high);
+                double EBP_ = EBP(fs_d, z_.Q_es);
+                std::cout << "T/S Parameters of the " << d_json["name"] << " Driver:\nC_ms: " << Cms << "\nf_s: " << fs_d << "\nQts: " << Qts << "\nBl: " << Bl << "\nQ_es: " << z_.Q_es << "\nQ_m: " << z_.Q_ms << "\nn_0: " << n0 << "\nSPL_1W: " << SPL_1W << "\nSPL_2.83W: " << SPL_283 << "\nX_L: " << XL << "\nL_e: " << Le << "\nEBP: " << EBP_ << "\n\n" << std::endl;
+            } else {
+                zma_data z_ = zma_interp(parsing_zma(zma_file), 20000);
+                double S_d = d_json["eff_surface_area"];
+                double XL = X_L(z_.Z_high, z_.R_e);
+                double Le = L_e(XL, z_.f_high);
+                std::cout << "T/S Parameters of the " << d_json["name"] << " Driver:" << "\nX_L: " << XL << "\nL_e: " << Le << "\n\n" << std::endl;
+            }
         }
     }
 
     double fs = json_f["fs_hz"];
-    double fc = json_f["crossover"]["crossover_freq_hz"];
     double omega_0 = 2.0 * PI * fs;
-    double omega_c = 2.0 * PI * fc;
     std::vector<std::complex<double>> H_box(s.size(), 1.0);
 
     // Get transfer functions describing the enclosure of a loudspeaker
-    if (json_f["box_type"] == "sealed") {
+    std::string box_type = json_f.value("box_type", "none");
+    if (box_type == "sealed") {
         double Qtc = json_f["sealed_params"]["Qtc"];
         H_box = sealed_transfer(s, omega_0, Qtc);
-    } else if (json_f["box_type"] == "vented") {
+    } else if (box_type == "vented") {
         double Qts = json_f["vented_params"]["Qts"];
         double h = json_f["vented_params"]["tuning_ratio_h"];
         double alpha = json_f["vented_params"]["volume_ratio_alpha"];
@@ -173,64 +166,87 @@ int main(int argc, char * argv[]) {
         a_coe a = gen_a_coes(Qts, QL, h, alpha);
         H_box = vented_transfer(s, a, omega_0);
     }
-    std::vector<std::complex<double>> H_HP;
-    std::vector<std::complex<double>> H_LP;
-    std::vector<std::complex<double>> Z_system(freqs.size());
-    std::vector<std::complex<double>> Z_woofer_in(freqs.size());
-    std::vector<std::complex<double>> Z_tweeter_in(freqs.size());
 
 	// finding the transfer function for active or passive crossover circuits
-	if (json_f["crossover"]["mode"] == "active") {
-    	H_HP = select_crossover(json_f["crossover"]["type"], json_f["crossover"]["order"], s, omega_c, 0);
-    	H_LP = select_crossover(json_f["crossover"]["type"], json_f["crossover"]["order"], s, omega_c, 1);
-    	Z_woofer_in = Z_woofer_zma;
-    	Z_tweeter_in = Z_tweeter_zma;
-	} else if (json_f["crossover"]["mode"] == "passive") {
-        if (json_f["crossover"].contains("tweeter_branch")) {
-            std::tie(H_HP, Z_tweeter_in) = pass_cross_abcd(s, Z_tweeter_zma, json_f["crossover"]["tweeter_branch"]);
+	for (auto& [key, ch] : channels) {
+        const json& cx = ch.crossover_cfg;
+        std::string mode = cx.value("mode", "active");
+        ch.H_crossover.assign(s.size(), std::complex<double>(1.0, 0.0));
+        ch.Z_in = ch.Z_zma; // default (no crossover network): amp/branch sees the driver's own impedance
+
+        if (mode == "active") {
+            std::vector<std::complex<double>> H_hp(s.size(), std::complex<double>(1.0, 0.0));
+            std::vector<std::complex<double>> H_lp(s.size(), std::complex<double>(1.0, 0.0));
+            std::string xtype = cx.value("type", "linkwitz_riley");
+
+            if (cx.contains("hp_freq_hz")) {
+                double fc = cx["hp_freq_hz"];
+                int order = cx.value("hp_order", 2);
+                double omega_c = 2.0 * PI * fc;
+                H_hp = select_crossover(xtype, order, s, omega_c, 0);
+            }
+            if (cx.contains("lp_freq_hz")) {
+                double fc = cx["lp_freq_hz"];
+                int order = cx.value("lp_order", 2);
+                double omega_c = 2.0 * PI * fc;
+                H_lp = select_crossover(xtype, order, s, omega_c, 1);
+            }
+            for (size_t j = 0; j < s.size(); ++j) {
+                ch.H_crossover[j] = H_hp[j] * H_lp[j];
+            }
+            ch.Z_in = ch.Z_zma;
+        } else if (mode == "passive") {
+            if (cx.contains("branch")) {
+                std::tie(ch.H_crossover, ch.Z_in) = pass_cross_abcd(s, ch.Z_zma, cx["branch"]);
+            }
         }
-        if (json_f["crossover"].contains("woofer_branch")) {
-            std::tie(H_LP, Z_woofer_in) = pass_cross_abcd(s, Z_woofer_zma, json_f["crossover"]["woofer_branch"]);
-        }
-	}
+    }
 
 	// Finding the systems impulse response
-	for (size_t i = 0; i < s.size(); ++i) {
-        Z_system[i] = (Z_woofer_in[i] * Z_tweeter_in[i]) / (Z_woofer_in[i] + Z_tweeter_in[i]);
+	std::vector<std::complex<double>> Z_system(freqs.size(), std::complex<double>(0.0, 0.0));
+    for (size_t i = 0; i < freqs.size(); ++i) {
+        std::complex<double> Y_sum(0.0, 0.0);
+        for (auto& [key, ch] : channels) {
+            if (std::abs(ch.Z_in[i]) > 1e-12) {
+                Y_sum += 1.0 / ch.Z_in[i];
+            }
+        }
+        Z_system[i] = (std::abs(Y_sum) > 1e-12) ? (1.0 / Y_sum) : std::complex<double>(0.0, 0.0);
     }
+
 
 	// finding the total system frequency response
-    std::vector<std::complex<double>> H_system_total(freqs.size());
-    std::vector<std::complex<double>> H_woofer(freqs.size());
-    std::vector<std::complex<double>> H_tweeter(freqs.size());
-    for (size_t i = 0; i < freqs.size(); ++i) {
-        std::complex<double> woofer_branch  = H_driver_woofer[i] * H_box[i] * H_LP[i];
-        std::complex<double> tweeter_branch = H_driver_tweeter[i] * H_HP[i];
-
-        H_woofer[i] = woofer_branch;
-        H_tweeter[i] = tweeter_branch;
-        H_system_total[i] = woofer_branch + tweeter_branch;
+	std::vector<std::complex<double>> H_system_total(freqs.size(), std::complex<double>(0.0, 0.0));
+    for (auto& [key, ch] : channels) {
+        ch.H_branch.assign(s.size(), std::complex<double>(0.0, 0.0));
+        for (size_t i = 0; i < s.size(); ++i) {
+            std::complex<double> enclosure_factor = ch.enclosure_loaded ? H_box[i] : std::complex<double>(1.0, 0.0);
+            ch.H_branch[i] = ch.H_driver[i] * enclosure_factor * ch.H_crossover[i];
+            H_system_total[i] += ch.H_branch[i];
+        }
     }
 
+
     // Plotting
-    std::string box_type = json_f["box_type"];
-    std::string cross_mode = json_f["crossover"]["mode"];
-	std::string title = std::format("{} {} {}-order {}-drive System", box_type, cross_mode, json_f["crossover"]["order"], json_f["drivers"].size());
-	
-    plot_t_funcs(H_system_total, H_driver_woofer, H_driver_tweeter, H_woofer, H_tweeter, s, title);
+    std::string title = std::format("{}-way {} System", channels.size(), box_type);
+
+    plot_t_funcs(H_system_total, channels, s, title);
     plot_imp(Z_system, s, "System Impedence");
-    plot_filter(H_HP, H_LP, s, "Filter Response");
+    plot_filter(channels, s, "Filter Response");
 
-	// Power
-	std::vector<double> P_woofer(s.size()), P_tweeter(s.size());
-	double V_in = json_f.value("V_in_tweeter", 2.83);
-	for (int i = 0; i < s.size(); ++i) {
-    	P_woofer[i]  = (V_in * V_in * std::abs(H_LP[i]) * std::abs(H_LP[i])) / std::real(Z_woofer_in[i]);
-        P_tweeter[i] = (V_in * V_in * std::abs(H_HP[i]) * std::abs(H_HP[i])) / std::real(Z_tweeter_in[i]);
-	}
-	plot_power(P_woofer, P_tweeter, s, "Power Dissipation");
+    // Power
+    for (auto& [key, ch] : channels) {
+        ch.power_dissipation.assign(s.size(), 0.0);
+        for (size_t i = 0; i < s.size(); ++i) {
+            double re_z = std::real(ch.Z_in[i]);
+            ch.power_dissipation[i] = (re_z > 1e-9)
+            ? (ch.V_in * ch.V_in * std::norm(ch.H_crossover[i])) / re_z
+            : 0.0;
+        }
+    }
+    plot_power(channels, s, "Power Dissipation");
 
-	plot_phase(H_system_total, s, "Group and Phase Delay");
+    plot_phase(H_system_total, s, "Group and Phase Delay");
 
     // Directivity
     std::vector<double> angles_deg;
@@ -241,9 +257,7 @@ int main(int argc, char * argv[]) {
     std::vector<std::vector<std::complex<double>>> sonogram_matrix;
     for (double deg : angles_deg) {
         double rad = deg * M_PI / 180.0;
-
-        auto H_theta = polar_response(s, freqs, H_woofer, H_tweeter, woofer_a, tweeter_a, woofer_offset_m, tweeter_offset_m, rad);
-        
+        auto H_theta = polar_response(s, freqs, channels, rad);
         sonogram_matrix.push_back(H_theta);
     }
 
@@ -255,5 +269,6 @@ int main(int argc, char * argv[]) {
         std::cout << "Sonogram matrix exported to sonogram_data.csv successfully.\n";
     }
     return 0;
+
 
 }

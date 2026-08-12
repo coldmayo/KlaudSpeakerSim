@@ -8,6 +8,13 @@
 	- [x] Power Handling & Thermal/Excursion Limits
 	- [ ] Crossover Component Optimizer
 	- [ ] In-Room Frequency Response
+	- [x] Add support for more driver types
+		- [x] Midrange
+		- [x] Midwoofer
+		- [x] Midtweeter
+		- [x] Full-range
+		- [x] Coaxial
+		- [x] Passive Radiator
 - [ ] GUI
 	- [ ] Save load project as JSON
 	- [ ] Crossover editor

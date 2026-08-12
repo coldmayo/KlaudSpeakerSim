@@ -1,8 +1,11 @@
 #include "matplotlibcpp.h"
+#include "include/channel.h"
+#include "include/plots.h"
 #include <complex>
 #include <cmath>
 #include <vector>
 #include <string>
+#include <map>
 
 namespace plt = matplotlibcpp;
 
@@ -11,7 +14,7 @@ constexpr double PI = 3.14159265358979323846;
 std::vector<double> phase_angle(const std::vector<std::complex<double>> & H) {
     std::vector<double> phi(H.size());
 
-    for (int i = 0; i < H.size(); ++i) {
+    for (size_t i = 0; i < H.size(); ++i) {
         phi[i] = std::atan2(H[i].imag(), H[i].real());
     }
     return phi;
@@ -60,22 +63,22 @@ std::vector<double> group_delay(const std::vector<double>& phi_unwrapped, const 
 
 void plot_phase(const std::vector<std::complex<double>>& H, const std::vector<std::complex<double>>& s, std::string title) {
     auto phi = phase_angle(H);
-	auto phi_uw = unwrap_phase(phi);
-	std::vector<double> omega(s.size());
+    auto phi_uw = unwrap_phase(phi);
+    std::vector<double> omega(s.size());
 
-	for (int i = 0; i < s.size(); ++i) {
-    	omega[i] = s[i].imag();
-	}
-	
-	auto tau_p = phase_delay(phi_uw, omega);
-	auto tau_g = group_delay(phi_uw, omega);
+    for (size_t i = 0; i < s.size(); ++i) {
+        omega[i] = s[i].imag();
+    }
 
-	std::vector<double> freq(s.size());
-	for (size_t i = 0; i < s.size(); ++i) {
-		freq[i] = std::imag(s[i]) / (2.0 * M_PI);
-	}
+    auto tau_p = phase_delay(phi_uw, omega);
+    auto tau_g = group_delay(phi_uw, omega);
 
-	plt::figure_size(1200, 780);
+    std::vector<double> freq(s.size());
+    for (size_t i = 0; i < s.size(); ++i) {
+        freq[i] = std::imag(s[i]) / (2.0 * PI);
+    }
+
+    plt::figure_size(1200, 780);
 
     plt::named_semilogx("Group Delay", freq, tau_g);
     plt::named_semilogx("Phase Delay", freq, tau_p);
@@ -91,30 +94,29 @@ void plot_phase(const std::vector<std::complex<double>>& H, const std::vector<st
     plt::close();
 }
 
-void plot_t_funcs(const std::vector<std::complex<double>>& H, const std::vector<std::complex<double>>& H_woofer, const std::vector<std::complex<double>>& H_tweeter, const std::vector<std::complex<double>>& H_woofer_filt, const std::vector<std::complex<double>>& H_tweeter_filt, const std::vector<std::complex<double>>& s,const std::string& title) {
-    std::vector<double> freq(s.size());
-    std::vector<double> mag_db_system(H.size());
-    std::vector<double> mag_db_woofer(H.size());
-    std::vector<double> mag_db_tweeter(H.size());
-    std::vector<double> mag_db_woofer_f(H.size());
-    std::vector<double> mag_db_tweeter_f(H.size());
+void plot_t_funcs(const std::vector<std::complex<double>>& H_system_total, const std::map<std::string, Channel>& channels, const std::vector<std::complex<double>>& s, const std::string& title) {
+    const size_t N = s.size();
+    std::vector<double> freq(N);
+    std::vector<double> mag_db_system(N);
 
-    for (size_t i = 0; i < s.size(); ++i) {
-        double f = std::imag(s[i]) / (2.0 * M_PI);
-        freq.push_back(f);
-        mag_db_system.push_back(20.0 * std::log10(std::abs(H[i])));
-        mag_db_tweeter.push_back(20.0 * std::log10(std::abs(H_tweeter[i])));
-        mag_db_tweeter_f.push_back(20.0 * std::log10(std::abs(H_tweeter_filt[i])));
-        mag_db_woofer.push_back(20.0 * std::log10(std::abs(H_woofer[i])));
-        mag_db_woofer_f.push_back(20.0 * std::log10(std::abs(H_woofer_filt[i])));
+    for (size_t i = 0; i < N; ++i) {
+        freq[i] = std::imag(s[i]) / (2.0 * PI);
+        mag_db_system[i] = 20.0 * std::log10(std::abs(H_system_total[i]) + 1e-12);
     }
 
     plt::figure_size(1200, 780);
 
-    plt::named_semilogx("$H_{Tweeter(s)}$", freq, mag_db_tweeter);
-    plt::named_semilogx("$H_{Woofer(s)}$", freq, mag_db_woofer);
-    plt::named_semilogx("Filtered $H_{Tweeter(s)}$", freq, mag_db_tweeter_f);
-    plt::named_semilogx("Filtered $H_{Woofer(s)}$", freq, mag_db_woofer_f);
+    for (const auto& [key, ch] : channels) {
+        std::vector<double> mag_db_raw(N);
+        std::vector<double> mag_db_branch(N);
+        for (size_t i = 0; i < N; ++i) {
+            mag_db_raw[i] = 20.0 * std::log10(std::abs(ch.H_driver[i]) + 1e-12);
+            mag_db_branch[i] = 20.0 * std::log10(std::abs(ch.H_branch[i]) + 1e-12);
+        }
+        plt::named_semilogx("$H_{" + key + "}$", freq, mag_db_raw);
+        plt::named_semilogx("Filtered $H_{" + key + "}$", freq, mag_db_branch);
+    }
+
     plt::named_semilogx("$H_{System}$", freq, mag_db_system);
     plt::grid(true);
 
@@ -128,13 +130,13 @@ void plot_t_funcs(const std::vector<std::complex<double>>& H, const std::vector<
     plt::close();
 }
 
-void plot_imp(std::vector<std::complex<double>> Z, const std::vector<std::complex<double>>&s, std::string title) {
-    std::vector<double> freq(s.size());
-    std::vector<double> mag_Z_system(Z.size());
-    for (size_t i = 0; i < s.size(); ++i) {
-        double f = std::imag(s[i]) / (2.0 * M_PI);
-        freq.push_back(f);
-        mag_Z_system.push_back(20.0 * std::log10(std::abs(Z[i])));
+void plot_imp(std::vector<std::complex<double>> Z, const std::vector<std::complex<double>>& s, std::string title) {
+    const size_t N = s.size();
+    std::vector<double> freq(N);
+    std::vector<double> mag_Z_system(N);
+    for (size_t i = 0; i < N; ++i) {
+        freq[i] = std::imag(s[i]) / (2.0 * PI);
+        mag_Z_system[i] = 20.0 * std::log10(std::abs(Z[i]) + 1e-12);
     }
 
     plt::figure_size(1200, 780);
@@ -142,9 +144,10 @@ void plot_imp(std::vector<std::complex<double>> Z, const std::vector<std::comple
     plt::named_semilogx("$Z_{System}$", freq, mag_Z_system);
 
     plt::grid(true);
-    
+
     plt::xlabel("Frequency (Hz)");
-    plt::ylabel("Impedence ($\Omega$)");
+    plt::ylabel("Impedence ($\\Omega$)");
+    plt::title(title);
 
     plt::legend();
 
@@ -152,28 +155,29 @@ void plot_imp(std::vector<std::complex<double>> Z, const std::vector<std::comple
     plt::close();
 }
 
-void plot_filter(const std::vector<std::complex<double>>& H_HP, const std::vector<std::complex<double>>& H_LP, const std::vector<std::complex<double>>& s, std::string title) {
-    std::vector<double> freq(s.size());
-    std::vector<double> mag_LP_db(s.size());
-    std::vector<double> mag_HP_db(s.size());
-
-    for (size_t i = 0; i < s.size(); ++i) {
-        double f = std::imag(s[i]) / (2.0 * M_PI);
-        freq[i] = f;
-
-        mag_LP_db[i] = 20.0 * std::log10(std::abs(H_LP[i]) + 1e-12);
-        mag_HP_db[i] = 20.0 * std::log10(std::abs(H_HP[i]) + 1e-12);
+// One filter-response trace per channel.
+void plot_filter(const std::map<std::string, Channel>& channels, const std::vector<std::complex<double>>& s, const std::string& title) {
+    const size_t N = s.size();
+    std::vector<double> freq(N);
+    for (size_t i = 0; i < N; ++i) {
+        freq[i] = std::imag(s[i]) / (2.0 * PI);
     }
 
     plt::figure_size(1200, 780);
 
-    plt::named_semilogx("Woofer Filter (LP)", freq, mag_LP_db);
-    plt::named_semilogx("Tweeter Filter (HP)", freq, mag_HP_db);
+    for (const auto& [key, ch] : channels) {
+        std::vector<double> mag_db(N);
+        for (size_t i = 0; i < N; ++i) {
+            mag_db[i] = 20.0 * std::log10(std::abs(ch.H_crossover[i]) + 1e-12);
+        }
+        plt::named_semilogx(key + " Filter", freq, mag_db);
+    }
 
     plt::grid(true);
 
     plt::xlabel("Frequency (Hz)");
     plt::ylabel("Transfer Function (dB)");
+    plt::title(title);
 
     plt::legend();
 
@@ -181,31 +185,35 @@ void plot_filter(const std::vector<std::complex<double>>& H_HP, const std::vecto
     plt::close();
 }
 
-void plot_power(const std::vector<double>& P_woofer, const std::vector<double>& P_tweeter, const std::vector<std::complex<double>>& s, std::string title) {
-    std::vector<double> freq(s.size());
-    std::vector<double> P_total(s.size());
+// One power trace per channel, plus total system power.
+void plot_power(const std::map<std::string, Channel>& channels, const std::vector<std::complex<double>>& s, const std::string& title) {
+    const size_t N = s.size();
+    std::vector<double> freq(N);
+    std::vector<double> P_total(N, 0.0);
 
-    for (size_t i = 0; i < s.size(); ++i) {
-        double f = std::imag(s[i]) / (2.0 * M_PI);
-        freq[i] = f;
-        P_total[i] = P_woofer[i] + P_tweeter[i];
+    for (size_t i = 0; i < N; ++i) {
+        freq[i] = std::imag(s[i]) / (2.0 * PI);
     }
 
     plt::figure_size(1200, 780);
 
-    plt::named_semilogx("Woofer Power", freq, P_woofer);
-    plt::named_semilogx("Tweeter Power", freq, P_tweeter);
+    for (const auto& [key, ch] : channels) {
+        plt::named_semilogx(key + " Power", freq, ch.power_dissipation);
+        for (size_t i = 0; i < N && i < ch.power_dissipation.size(); ++i) {
+            P_total[i] += ch.power_dissipation[i];
+        }
+    }
+
     plt::named_semilogx("Total System Power", freq, P_total);
 
     plt::grid(true);
 
     plt::xlabel("Frequency (Hz)");
     plt::ylabel("Active Power (W)");
+    plt::title(title);
 
     plt::legend();
 
     plt::save(title + ".png");
     plt::close();
 }
-
-
